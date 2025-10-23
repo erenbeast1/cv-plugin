@@ -1,0 +1,1596 @@
+<?php
+/**
+ * Modern CV System - Add to functions.php
+ * Version: 3.0 - Exact PDF Match
+ */
+
+// Admin Menu
+add_action('admin_menu', 'custom_cv_menu');
+function custom_cv_menu() {
+    add_menu_page(
+        'CV Management',
+        'CV Management',
+        'manage_options',
+        'cv-manager',
+        'cv_manager_page',
+        'dashicons-id-alt',
+        30
+    );
+}
+
+// Save Function
+function save_cv_data() {
+    if (!isset($_POST['cv_save'])) return;
+    
+    check_admin_referer('cv_save_action');
+    
+    // Personal Info
+    update_option('cv_name', sanitize_text_field($_POST['cv_name']));
+    update_option('cv_photo', esc_url($_POST['cv_photo']));
+    update_option('cv_logo', esc_url($_POST['cv_logo']));
+    update_option('cv_summary', wp_kses_post($_POST['cv_summary']));
+    update_option('cv_location', sanitize_text_field($_POST['cv_location']));
+    update_option('cv_website', esc_url($_POST['cv_website']));
+    update_option('cv_email', sanitize_email($_POST['cv_email']));
+    update_option('cv_linkedin', esc_url($_POST['cv_linkedin']));
+    update_option('cv_instagram1', esc_url($_POST['cv_instagram1']));
+    update_option('cv_instagram2', esc_url($_POST['cv_instagram2']));
+    update_option('cv_instagram3', esc_url($_POST['cv_instagram3']));
+    update_option('cv_youtube', esc_url($_POST['cv_youtube']));
+    update_option('cv_birthdate', sanitize_text_field($_POST['cv_birthdate']));
+    
+    // Certifications
+    $certifications = array();
+    if (isset($_POST['cert_name'])) {
+        foreach ($_POST['cert_name'] as $i => $cert) {
+            if (!empty($cert)) {
+                $certifications[] = array(
+                    'name' => sanitize_text_field($cert),
+                    'date' => sanitize_text_field($_POST['cert_date'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_certifications', $certifications);
+    
+    // Education
+    $education = array();
+    if (isset($_POST['edu_title'])) {
+        foreach ($_POST['edu_title'] as $i => $edu) {
+            if (!empty($edu)) {
+                $education[] = array(
+                    'title' => sanitize_text_field($edu),
+                    'location' => sanitize_text_field($_POST['edu_location'][$i]),
+                    'period' => sanitize_text_field($_POST['edu_period'][$i]),
+                    'details' => wp_kses_post($_POST['edu_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_education', $education);
+    
+    // Experience
+    $experience = array();
+    if (isset($_POST['exp_title'])) {
+        foreach ($_POST['exp_title'] as $i => $exp) {
+            if (!empty($exp)) {
+                $experience[] = array(
+                    'title' => sanitize_text_field($exp),
+                    'period' => sanitize_text_field($_POST['exp_period'][$i]),
+                    'details' => wp_kses_post($_POST['exp_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_experience', $experience);
+    
+    // Awards
+    $awards = array();
+    if (isset($_POST['award_title'])) {
+        foreach ($_POST['award_title'] as $i => $award) {
+            if (!empty($award)) {
+                $awards[] = array(
+                    'title' => sanitize_text_field($award),
+                    'date' => sanitize_text_field($_POST['award_date'][$i]),
+                    'details' => wp_kses_post($_POST['award_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_awards', $awards);
+    
+    // Summer Camps
+    $camps = array();
+    if (isset($_POST['camp_title'])) {
+        foreach ($_POST['camp_title'] as $i => $camp) {
+            if (!empty($camp)) {
+                $camps[] = array(
+                    'title' => sanitize_text_field($camp),
+                    'location' => sanitize_text_field($_POST['camp_location'][$i]),
+                    'date' => sanitize_text_field($_POST['camp_date'][$i]),
+                    'details' => wp_kses_post($_POST['camp_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_camps', $camps);
+    
+    // Projects
+    $projects = array();
+    if (isset($_POST['project_title'])) {
+        foreach ($_POST['project_title'] as $i => $proj) {
+            if (!empty($proj)) {
+                $projects[] = array(
+                    'title' => sanitize_text_field($proj),
+                    'period' => sanitize_text_field($_POST['project_period'][$i]),
+                    'url' => esc_url($_POST['project_url'][$i]),
+                    'details' => wp_kses_post($_POST['project_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_projects', $projects);
+    
+    // Volunteering
+    $volunteer = array();
+    if (isset($_POST['vol_title'])) {
+        foreach ($_POST['vol_title'] as $i => $vol) {
+            if (!empty($vol)) {
+                $volunteer[] = array(
+                    'title' => sanitize_text_field($vol),
+                    'period' => sanitize_text_field($_POST['vol_period'][$i]),
+                    'details' => wp_kses_post($_POST['vol_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_volunteer', $volunteer);
+    
+    // Entrepreneurship
+    $entrepreneurship = array();
+    if (isset($_POST['entre_title'])) {
+        foreach ($_POST['entre_title'] as $i => $entre) {
+            if (!empty($entre)) {
+                $entrepreneurship[] = array(
+                    'title' => sanitize_text_field($entre),
+                    'period' => sanitize_text_field($_POST['entre_period'][$i]),
+                    'details' => wp_kses_post($_POST['entre_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_entrepreneurship', $entrepreneurship);
+    
+    // Leadership
+    $leadership = array();
+    if (isset($_POST['lead_title'])) {
+        foreach ($_POST['lead_title'] as $i => $lead) {
+            if (!empty($lead)) {
+                $leadership[] = array(
+                    'title' => sanitize_text_field($lead),
+                    'period' => sanitize_text_field($_POST['lead_period'][$i]),
+                    'details' => wp_kses_post($_POST['lead_details'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_leadership', $leadership);
+    
+    // School Clubs
+    $clubs = array();
+    if (isset($_POST['club_year'])) {
+        foreach ($_POST['club_year'] as $i => $club) {
+            if (!empty($club)) {
+                $clubs[] = array(
+                    'year' => sanitize_text_field($club),
+                    'list' => wp_kses_post($_POST['club_list'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_clubs', $clubs);
+    
+    // Interests
+    $interests = array();
+    if (isset($_POST['interest'])) {
+        foreach ($_POST['interest'] as $interest) {
+            if (!empty($interest)) {
+                $interests[] = sanitize_text_field($interest);
+            }
+        }
+    }
+    update_option('cv_interests', $interests);
+    
+    // Skills
+    $skills = array();
+    if (isset($_POST['skill'])) {
+        foreach ($_POST['skill'] as $skill) {
+            if (!empty($skill)) {
+                $skills[] = sanitize_text_field($skill);
+            }
+        }
+    }
+    update_option('cv_skills', $skills);
+    
+    // Languages
+    $languages = array();
+    if (isset($_POST['language'])) {
+        foreach ($_POST['language'] as $i => $lang) {
+            if (!empty($lang)) {
+                $languages[] = array(
+                    'name' => sanitize_text_field($lang),
+                    'level' => sanitize_text_field($_POST['language_level'][$i])
+                );
+            }
+        }
+    }
+    update_option('cv_languages', $languages);
+    
+    echo '<div class="notice notice-success"><p><strong>CV saved successfully!</strong></p></div>';
+}
+
+// Admin Page Function
+function cv_manager_page() {
+    save_cv_data();
+    
+    // Get current data
+    $cv_name = get_option('cv_name', '');
+    $cv_photo = get_option('cv_photo', '');
+    $cv_logo = get_option('cv_logo', '');
+    $cv_summary = get_option('cv_summary', '');
+    $cv_location = get_option('cv_location', '');
+    $cv_website = get_option('cv_website', '');
+    $cv_email = get_option('cv_email', '');
+    $cv_linkedin = get_option('cv_linkedin', '');
+    $cv_instagram1 = get_option('cv_instagram1', '');
+    $cv_instagram2 = get_option('cv_instagram2', '');
+    $cv_instagram3 = get_option('cv_instagram3', '');
+    $cv_youtube = get_option('cv_youtube', '');
+    $cv_birthdate = get_option('cv_birthdate', '');
+    $certifications = get_option('cv_certifications', array());
+    $education = get_option('cv_education', array());
+    $experience = get_option('cv_experience', array());
+    $awards = get_option('cv_awards', array());
+    $camps = get_option('cv_camps', array());
+    $projects = get_option('cv_projects', array());
+    $volunteer = get_option('cv_volunteer', array());
+    $entrepreneurship = get_option('cv_entrepreneurship', array());
+    $leadership = get_option('cv_leadership', array());
+    $clubs = get_option('cv_clubs', array());
+    $interests = get_option('cv_interests', array());
+    $skills = get_option('cv_skills', array());
+    $languages = get_option('cv_languages', array());
+    ?>
+    
+    <style>
+        .cv-admin-wrap { max-width: 1400px; margin: 20px; }
+        .cv-admin-header { background: #fff; padding: 20px; margin-bottom: 20px; border-left: 4px solid #2271b1; }
+        .cv-admin-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .cv-admin-column { background: #fff; padding: 25px; border: 1px solid #ddd; }
+        .cv-section { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0; }
+        .cv-section:last-child { border-bottom: none; }
+        .cv-section h2 { color: #2271b1; font-size: 20px; margin-bottom: 15px; }
+        .cv-field { margin-bottom: 15px; }
+        .cv-field label { display: block; font-weight: 600; margin-bottom: 5px; color: #1d2327; }
+        .cv-field input[type="text"],
+        .cv-field input[type="email"],
+        .cv-field input[type="url"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .cv-field textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; min-height: 80px; }
+        .cv-repeater { background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px; position: relative; }
+        .cv-repeater-remove { position: absolute; top: 10px; right: 10px; color: #dc3232; cursor: pointer; font-size: 20px; }
+        .cv-add-button { background: #2271b1; color: #fff; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .cv-add-button:hover { background: #135e96; }
+        .cv-save-button { background: #00a32a; color: #fff; border: none; padding: 15px 40px; font-size: 16px; border-radius: 4px; cursor: pointer; margin-top: 20px; }
+        .cv-save-button:hover { background: #008a20; }
+        .cv-shortcode { background: #f0f0f0; padding: 15px; border-left: 4px solid #00a32a; margin: 20px 0; }
+        .cv-shortcode code { background: #fff; padding: 5px 10px; border-radius: 3px; font-size: 14px; }
+    </style>
+    
+    <div class="cv-admin-wrap">
+        <div class="cv-admin-header">
+            <h1>CV Management Panel</h1>
+            <div class="cv-shortcode">
+                <strong>Shortcode:</strong> <code>[custom_cv]</code> (Add this code to your page)
+            </div>
+        </div>
+        
+        <form method="post">
+            <?php wp_nonce_field('cv_save_action'); ?>
+            
+            <div class="cv-admin-columns">
+                <!-- LEFT COLUMN -->
+                <div class="cv-admin-column">
+                    <h1 style="color: #2271b1; margin-bottom: 30px;">LEFT SIDE</h1>
+                    
+                    <!-- Personal Information -->
+                    <div class="cv-section">
+                        <h2>Personal Information</h2>
+                        <div class="cv-field">
+                            <label>Full Name</label>
+                            <input type="text" name="cv_name" value="<?php echo esc_attr($cv_name); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Photo URL (Square)</label>
+                            <input type="url" name="cv_photo" value="<?php echo esc_attr($cv_photo); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Logo URL (Square)</label>
+                            <input type="url" name="cv_logo" value="<?php echo esc_attr($cv_logo); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Summary / Professional Statement (Optional)</label>
+                            <textarea name="cv_summary" style="min-height: 120px;"><?php echo esc_textarea($cv_summary); ?></textarea>
+                            <small>This will appear at the top of your CV if filled</small>
+                        </div>
+                        <div class="cv-field">
+                            <label>Location</label>
+                            <input type="text" name="cv_location" value="<?php echo esc_attr($cv_location); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Website</label>
+                            <input type="url" name="cv_website" value="<?php echo esc_attr($cv_website); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Email</label>
+                            <input type="email" name="cv_email" value="<?php echo esc_attr($cv_email); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>LinkedIn</label>
+                            <input type="url" name="cv_linkedin" value="<?php echo esc_attr($cv_linkedin); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Instagram 1</label>
+                            <input type="url" name="cv_instagram1" value="<?php echo esc_attr($cv_instagram1); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Instagram 2</label>
+                            <input type="url" name="cv_instagram2" value="<?php echo esc_attr($cv_instagram2); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Instagram 3</label>
+                            <input type="url" name="cv_instagram3" value="<?php echo esc_attr($cv_instagram3); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>YouTube</label>
+                            <input type="url" name="cv_youtube" value="<?php echo esc_attr($cv_youtube); ?>">
+                        </div>
+                        <div class="cv-field">
+                            <label>Date of Birth</label>
+                            <input type="text" name="cv_birthdate" value="<?php echo esc_attr($cv_birthdate); ?>">
+                        </div>
+                    </div>
+                    
+                    <!-- Certifications -->
+                    <div class="cv-section">
+                        <h2>Certifications</h2>
+                        <div id="certifications-container">
+                            <?php 
+                            if (!empty($certifications)) {
+                                foreach ($certifications as $i => $cert) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Certificate Name</label>
+                                            <input type="text" name="cert_name[]" value="<?php echo esc_attr($cert['name']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Date</label>
+                                            <input type="text" name="cert_date[]" value="<?php echo esc_attr($cert['date']); ?>">
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addCertification()">+ Add Certification</button>
+                    </div>
+                    
+                    <!-- Interests -->
+                    <div class="cv-section">
+                        <h2>Interests</h2>
+                        <div id="interests-container">
+                            <?php 
+                            if (!empty($interests)) {
+                                foreach ($interests as $i => $interest) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Interest</label>
+                                            <input type="text" name="interest[]" value="<?php echo esc_attr($interest); ?>">
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addInterest()">+ Add Interest</button>
+                    </div>
+                    
+                    <!-- Skills -->
+                    <div class="cv-section">
+                        <h2>Skills</h2>
+                        <div id="skills-container">
+                            <?php 
+                            if (!empty($skills)) {
+                                foreach ($skills as $i => $skill) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Skill</label>
+                                            <input type="text" name="skill[]" value="<?php echo esc_attr($skill); ?>">
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addSkill()">+ Add Skill</button>
+                    </div>
+                    
+                    <!-- Languages -->
+                    <div class="cv-section">
+                        <h2>Languages</h2>
+                        <div id="languages-container">
+                            <?php 
+                            if (!empty($languages)) {
+                                foreach ($languages as $i => $lang) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Language</label>
+                                            <input type="text" name="language[]" value="<?php echo esc_attr($lang['name']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Level</label>
+                                            <input type="text" name="language_level[]" value="<?php echo esc_attr($lang['level']); ?>">
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addLanguage()">+ Add Language</button>
+                    </div>
+                </div>
+                
+                <!-- RIGHT COLUMN -->
+                <div class="cv-admin-column">
+                    <h1 style="color: #2271b1; margin-bottom: 30px;">RIGHT SIDE</h1>
+                    
+                    <!-- Education -->
+                    <div class="cv-section">
+                        <h2>Education</h2>
+                        <div id="education-container">
+                            <?php 
+                            if (!empty($education)) {
+                                foreach ($education as $i => $edu) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>School/Institution</label>
+                                            <input type="text" name="edu_title[]" value="<?php echo esc_attr($edu['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Location</label>
+                                            <input type="text" name="edu_location[]" value="<?php echo esc_attr($edu['location']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Period</label>
+                                            <input type="text" name="edu_period[]" value="<?php echo esc_attr($edu['period']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="edu_details[]"><?php echo esc_textarea($edu['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addEducation()">+ Add Education</button>
+                    </div>
+                    
+                    <!-- Experience -->
+                    <div class="cv-section">
+                        <h2>Experience</h2>
+                        <div id="experience-container">
+                            <?php 
+                            if (!empty($experience)) {
+                                foreach ($experience as $i => $exp) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Title</label>
+                                            <input type="text" name="exp_title[]" value="<?php echo esc_attr($exp['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Period</label>
+                                            <input type="text" name="exp_period[]" value="<?php echo esc_attr($exp['period']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="exp_details[]"><?php echo esc_textarea($exp['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addExperience()">+ Add Experience</button>
+                    </div>
+                    
+                    <!-- Awards -->
+                    <div class="cv-section">
+                        <h2>Honors & Awards</h2>
+                        <div id="awards-container">
+                            <?php 
+                            if (!empty($awards)) {
+                                foreach ($awards as $i => $award) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Award Name</label>
+                                            <input type="text" name="award_title[]" value="<?php echo esc_attr($award['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Date</label>
+                                            <input type="text" name="award_date[]" value="<?php echo esc_attr($award['date']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="award_details[]"><?php echo esc_textarea($award['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addAward()">+ Add Award</button>
+                    </div>
+                    
+                    <!-- Summer Camps -->
+                    <div class="cv-section">
+                        <h2>Summer Camps</h2>
+                        <div id="camps-container">
+                            <?php 
+                            if (!empty($camps)) {
+                                foreach ($camps as $i => $camp) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Camp Name</label>
+                                            <input type="text" name="camp_title[]" value="<?php echo esc_attr($camp['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Location</label>
+                                            <input type="text" name="camp_location[]" value="<?php echo esc_attr($camp['location']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Date</label>
+                                            <input type="text" name="camp_date[]" value="<?php echo esc_attr($camp['date']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="camp_details[]"><?php echo esc_textarea($camp['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addCamp()">+ Add Camp</button>
+                    </div>
+                    
+                    <!-- Projects -->
+                    <div class="cv-section">
+                        <h2>Projects</h2>
+                        <div id="projects-container">
+                            <?php 
+                            if (!empty($projects)) {
+                                foreach ($projects as $i => $proj) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Project Name</label>
+                                            <input type="text" name="project_title[]" value="<?php echo esc_attr($proj['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Period</label>
+                                            <input type="text" name="project_period[]" value="<?php echo esc_attr($proj['period']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>URL</label>
+                                            <input type="url" name="project_url[]" value="<?php echo esc_attr($proj['url']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="project_details[]"><?php echo esc_textarea($proj['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addProject()">+ Add Project</button>
+                    </div>
+                    
+                    <!-- Volunteering -->
+                    <div class="cv-section">
+                        <h2>Volunteering</h2>
+                        <div id="volunteer-container">
+                            <?php 
+                            if (!empty($volunteer)) {
+                                foreach ($volunteer as $i => $vol) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Organization</label>
+                                            <input type="text" name="vol_title[]" value="<?php echo esc_attr($vol['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Period</label>
+                                            <input type="text" name="vol_period[]" value="<?php echo esc_attr($vol['period']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="vol_details[]"><?php echo esc_textarea($vol['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addVolunteer()">+ Add Volunteering</button>
+                    </div>
+                    
+                    <!-- Entrepreneurship -->
+                    <div class="cv-section">
+                        <h2>Entrepreneurship</h2>
+                        <div id="entrepreneurship-container">
+                            <?php 
+                            if (!empty($entrepreneurship)) {
+                                foreach ($entrepreneurship as $i => $entre) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Title</label>
+                                            <input type="text" name="entre_title[]" value="<?php echo esc_attr($entre['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Period</label>
+                                            <input type="text" name="entre_period[]" value="<?php echo esc_attr($entre['period']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="entre_details[]"><?php echo esc_textarea($entre['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addEntrepreneurship()">+ Add Entrepreneurship</button>
+                    </div>
+                    
+                    <!-- Leadership -->
+                    <div class="cv-section">
+                        <h2>Leadership</h2>
+                        <div id="leadership-container">
+                            <?php 
+                            if (!empty($leadership)) {
+                                foreach ($leadership as $i => $lead) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Title</label>
+                                            <input type="text" name="lead_title[]" value="<?php echo esc_attr($lead['title']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Period</label>
+                                            <input type="text" name="lead_period[]" value="<?php echo esc_attr($lead['period']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Details (use • for bullets)</label>
+                                            <textarea name="lead_details[]"><?php echo esc_textarea($lead['details']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addLeadership()">+ Add Leadership</button>
+                    </div>
+                    
+                    <!-- School Clubs -->
+                    <div class="cv-section">
+                        <h2>School Clubs</h2>
+                        <div id="clubs-container">
+                            <?php 
+                            if (!empty($clubs)) {
+                                foreach ($clubs as $i => $club) { ?>
+                                    <div class="cv-repeater">
+                                        <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                                        <div class="cv-field">
+                                            <label>Year/Grade</label>
+                                            <input type="text" name="club_year[]" value="<?php echo esc_attr($club['year']); ?>">
+                                        </div>
+                                        <div class="cv-field">
+                                            <label>Club List</label>
+                                            <textarea name="club_list[]"><?php echo esc_textarea($club['list']); ?></textarea>
+                                        </div>
+                                    </div>
+                                <?php }
+                            }
+                            ?>
+                        </div>
+                        <button type="button" class="cv-add-button" onclick="addClub()">+ Add Club Year</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <button type="submit" name="cv_save" class="cv-save-button">SAVE</button>
+            </div>
+        </form>
+    </div>
+    
+    <script>
+    function addCertification() {
+        document.getElementById('certifications-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Certificate Name</label>
+                    <input type="text" name="cert_name[]">
+                </div>
+                <div class="cv-field">
+                    <label>Date</label>
+                    <input type="text" name="cert_date[]">
+                </div>
+            </div>
+        `);
+    }
+    
+    function addEducation() {
+        document.getElementById('education-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>School/Institution</label>
+                    <input type="text" name="edu_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Location</label>
+                    <input type="text" name="edu_location[]">
+                </div>
+                <div class="cv-field">
+                    <label>Period</label>
+                    <input type="text" name="edu_period[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="edu_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addExperience() {
+        document.getElementById('experience-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Title</label>
+                    <input type="text" name="exp_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Period</label>
+                    <input type="text" name="exp_period[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="exp_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addAward() {
+        document.getElementById('awards-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Award Name</label>
+                    <input type="text" name="award_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Date</label>
+                    <input type="text" name="award_date[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="award_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addCamp() {
+        document.getElementById('camps-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Camp Name</label>
+                    <input type="text" name="camp_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Location</label>
+                    <input type="text" name="camp_location[]">
+                </div>
+                <div class="cv-field">
+                    <label>Date</label>
+                    <input type="text" name="camp_date[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="camp_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addProject() {
+        document.getElementById('projects-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Project Name</label>
+                    <input type="text" name="project_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Period</label>
+                    <input type="text" name="project_period[]">
+                </div>
+                <div class="cv-field">
+                    <label>URL</label>
+                    <input type="url" name="project_url[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="project_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addVolunteer() {
+        document.getElementById('volunteer-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Organization</label>
+                    <input type="text" name="vol_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Period</label>
+                    <input type="text" name="vol_period[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="vol_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addEntrepreneurship() {
+        document.getElementById('entrepreneurship-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Title</label>
+                    <input type="text" name="entre_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Period</label>
+                    <input type="text" name="entre_period[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="entre_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addLeadership() {
+        document.getElementById('leadership-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Title</label>
+                    <input type="text" name="lead_title[]">
+                </div>
+                <div class="cv-field">
+                    <label>Period</label>
+                    <input type="text" name="lead_period[]">
+                </div>
+                <div class="cv-field">
+                    <label>Details (use • for bullets)</label>
+                    <textarea name="lead_details[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addClub() {
+        document.getElementById('clubs-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Year/Grade</label>
+                    <input type="text" name="club_year[]">
+                </div>
+                <div class="cv-field">
+                    <label>Club List</label>
+                    <textarea name="club_list[]"></textarea>
+                </div>
+            </div>
+        `);
+    }
+    
+    function addInterest() {
+        document.getElementById('interests-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Interest</label>
+                    <input type="text" name="interest[]">
+                </div>
+            </div>
+        `);
+    }
+    
+    function addSkill() {
+        document.getElementById('skills-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Skill</label>
+                    <input type="text" name="skill[]">
+                </div>
+            </div>
+        `);
+    }
+    
+    function addLanguage() {
+        document.getElementById('languages-container').insertAdjacentHTML('beforeend', `
+            <div class="cv-repeater">
+                <span class="cv-repeater-remove" onclick="this.parentElement.remove()">×</span>
+                <div class="cv-field">
+                    <label>Language</label>
+                    <input type="text" name="language[]">
+                </div>
+                <div class="cv-field">
+                    <label>Level</label>
+                    <input type="text" name="language_level[]">
+                </div>
+            </div>
+        `);
+    }
+    </script>
+    <?php
+}
+
+// Shortcode - Frontend Display
+add_shortcode('custom_cv', 'custom_cv_shortcode');
+function custom_cv_shortcode() {
+    // Get all data
+    $cv_name = get_option('cv_name', '');
+    $cv_photo = get_option('cv_photo', '');
+    $cv_logo = get_option('cv_logo', '');
+    $cv_summary = get_option('cv_summary', '');
+    $cv_location = get_option('cv_location', '');
+    $cv_website = get_option('cv_website', '');
+    $cv_email = get_option('cv_email', '');
+    $cv_linkedin = get_option('cv_linkedin', '');
+    $cv_instagram1 = get_option('cv_instagram1', '');
+    $cv_instagram2 = get_option('cv_instagram2', '');
+    $cv_instagram3 = get_option('cv_instagram3', '');
+    $cv_youtube = get_option('cv_youtube', '');
+    $cv_birthdate = get_option('cv_birthdate', '');
+    $certifications = get_option('cv_certifications', array());
+    $education = get_option('cv_education', array());
+    $experience = get_option('cv_experience', array());
+    $awards = get_option('cv_awards', array());
+    $camps = get_option('cv_camps', array());
+    $projects = get_option('cv_projects', array());
+    $volunteer = get_option('cv_volunteer', array());
+    $entrepreneurship = get_option('cv_entrepreneurship', array());
+    $leadership = get_option('cv_leadership', array());
+    $clubs = get_option('cv_clubs', array());
+    $interests = get_option('cv_interests', array());
+    $skills = get_option('cv_skills', array());
+    $languages = get_option('cv_languages', array());
+    
+    ob_start();
+    ?>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        .cv-wrapper {
+            font-family: 'Poppins', sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .cv-container {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 0;
+            background: #fff;
+            box-shadow: 0 0 30px rgba(0,0,0,0.1);
+            min-height: 100vh;
+            grid-template-rows: auto 1fr;
+        }
+        
+        .cv-left {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 0;
+            grid-row: 2;
+        }
+        
+        .cv-header-section {
+            background: #2c3e50;
+            padding: 0;
+            border-bottom: 3px solid #2c3e50;
+            grid-column: 1 / -1;
+        }
+        
+        .cv-header-row {
+            display: grid;
+            grid-template-columns: 180px 1fr 180px;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .cv-logo {
+            width: 140px;
+            height: 140px;
+            border: 4px solid #2c3e50;
+            background: white;
+            padding: 10px;
+        }
+        
+        .cv-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .cv-name {
+            font-size: 56px;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+            letter-spacing: 3px;
+            text-align: center;
+            text-transform: uppercase;
+        }
+        
+        .cv-photo {
+            width: 140px;
+            height: 140px;
+            border: 4px solid #2c3e50;
+            background: white;
+            overflow: hidden;
+            justify-self: end;
+        }
+        
+        .cv-photo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .cv-left-content {
+            padding: 25px 20px;
+        }
+        
+        .cv-right {
+            background: #fff;
+            padding: 30px 35px;
+            grid-row: 2;
+        }
+        
+        .cv-summary-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-bottom: 25px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .cv-summary-section p {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #2c3e50;
+        }
+        
+        .cv-section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            margin: 25px 0 12px 0;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #3498db;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .cv-section-title:first-child {
+            margin-top: 0;
+        }
+        
+        .cv-right .cv-section-title {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            margin: 20px 0 10px 0;
+        }
+        
+        .cv-right .cv-section-title:first-child {
+            margin-top: 0;
+        }
+        
+        .cv-contact-item {
+            margin-bottom: 8px;
+            font-size: 12px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        
+        .cv-contact-item a {
+            color: #3498db;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        
+        .cv-contact-item a:hover {
+            text-decoration: underline;
+        }
+        
+        .cv-cert-item {
+            margin-bottom: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .cv-cert-item strong {
+            display: block;
+            color: #fff;
+        }
+        
+        .cv-item {
+            margin-bottom: 15px;
+        }
+        
+        .cv-item-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 3px;
+            line-height: 1.3;
+        }
+        
+        .cv-item-meta {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+            font-style: italic;
+        }
+        
+        .cv-item-details {
+            font-size: 13px;
+            line-height: 1.5;
+            color: #555;
+        }
+        
+        .cv-item-details p {
+            margin: 5px 0;
+        }
+        
+        .cv-item-details ul {
+            margin: 5px 0;
+            padding-left: 18px;
+            list-style: none;
+        }
+        
+        .cv-item-details ul li {
+            margin-bottom: 3px;
+            padding-left: 15px;
+            position: relative;
+        }
+        
+        .cv-item-details ul li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #3498db;
+            font-weight: bold;
+        }
+        
+        .cv-simple-list {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #ecf0f1;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .cv-simple-list li {
+            margin-bottom: 6px;
+            padding-left: 12px;
+            position: relative;
+        }
+        
+        .cv-simple-list li:before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: #3498db;
+        }
+        
+        .cv-right .cv-simple-list {
+            color: #555;
+        }
+        
+        @media (max-width: 1024px) {
+            .cv-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+            }
+            
+            .cv-header-row {
+                grid-template-columns: 120px 1fr 120px;
+                padding: 15px;
+            }
+            
+            .cv-logo, .cv-photo {
+                width: 100px;
+                height: 100px;
+            }
+            
+            .cv-name {
+                font-size: 32px;
+            }
+            
+            .cv-left {
+                grid-row: auto;
+            }
+            
+            .cv-right {
+                grid-row: auto;
+            }
+            
+            .cv-left-content {
+                padding: 20px;
+            }
+            
+            .cv-right {
+                padding: 25px 20px;
+            }
+        }
+        
+        @media print {
+            .cv-container {
+                box-shadow: none;
+            }
+            .cv-wrapper {
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+    
+    <div class="cv-wrapper">
+        <div class="cv-container">
+            <!-- HEADER (Full Width) -->
+            <div class="cv-header-section">
+                <div class="cv-header-row">
+                    <?php if ($cv_logo): ?>
+                        <div class="cv-logo">
+							                            <img src="<?php echo esc_url($cv_photo); ?>" alt="<?php echo esc_attr($cv_name); ?>">
+                        </div>
+                    <?php else: ?>
+                        <div></div>
+                    <?php endif; ?>
+                    
+                    <?php if ($cv_name): ?>
+                        <h1 class="cv-name"><?php echo esc_html($cv_name); ?></h1>
+                    <?php endif; ?>
+                    
+                    <?php if ($cv_photo): ?>
+                        <div class="cv-photo">
+                            <img src="<?php echo esc_url($cv_logo); ?>" alt="Logo">
+                        </div>
+                    <?php else: ?>
+                        <div></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
+            <!-- LEFT SIDE -->
+            <div class="cv-left">
+                <div class="cv-left-content">
+                    <!-- Contact -->
+                    <?php if ($cv_location || $cv_website || $cv_email || $cv_linkedin || $cv_instagram1 || $cv_instagram2 || $cv_instagram3 || $cv_youtube): ?>
+                        <div class="cv-section-title">Contact</div>
+                        <?php if ($cv_location): ?>
+                            <div class="cv-contact-item"><?php echo esc_html($cv_location); ?></div>
+                        <?php endif; ?>
+                        <?php if ($cv_website): ?>
+                            <div class="cv-contact-item"><a href="<?php echo esc_url($cv_website); ?>" target="_blank"><?php echo esc_html($cv_website); ?></a></div>
+                        <?php endif; ?>
+                        <?php if ($cv_email): ?>
+                            <div class="cv-contact-item"><a href="mailto:<?php echo esc_attr($cv_email); ?>"><?php echo esc_html($cv_email); ?></a></div>
+                        <?php endif; ?>
+                        <?php if ($cv_linkedin): ?>
+                            <div class="cv-contact-item"><a href="<?php echo esc_url($cv_linkedin); ?>" target="_blank">LinkedIn</a></div>
+                        <?php endif; ?>
+                        <?php if ($cv_instagram1): ?>
+                            <div class="cv-contact-item"><a href="<?php echo esc_url($cv_instagram1); ?>" target="_blank">Instagram</a></div>
+                        <?php endif; ?>
+                        <?php if ($cv_instagram2): ?>
+                            <div class="cv-contact-item"><a href="<?php echo esc_url($cv_instagram2); ?>" target="_blank">Instagram 2</a></div>
+                        <?php endif; ?>
+                        <?php if ($cv_instagram3): ?>
+                            <div class="cv-contact-item"><a href="<?php echo esc_url($cv_instagram3); ?>" target="_blank">Instagram 3</a></div>
+                        <?php endif; ?>
+                        <?php if ($cv_youtube): ?>
+                            <div class="cv-contact-item"><a href="<?php echo esc_url($cv_youtube); ?>" target="_blank">YouTube</a></div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
+                    <!-- Date of Birth -->
+                    <?php if ($cv_birthdate): ?>
+                        <div class="cv-section-title">Date of Birth</div>
+                        <div class="cv-contact-item"><?php echo esc_html($cv_birthdate); ?></div>
+                    <?php endif; ?>
+                    
+                    <!-- Certifications -->
+                    <?php if (!empty($certifications)): ?>
+                        <div class="cv-section-title">Certifications</div>
+                        <?php foreach ($certifications as $cert): ?>
+                            <div class="cv-cert-item">
+                                <strong><?php echo esc_html($cert['name']); ?></strong>
+                                <?php if (!empty($cert['date'])): ?>
+                                    <span>(<?php echo esc_html($cert['date']); ?>)</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    
+                    <!-- Interests -->
+                    <?php if (!empty($interests)): ?>
+                        <div class="cv-section-title">Interests</div>
+                        <ul class="cv-simple-list">
+                            <?php foreach ($interests as $interest): ?>
+                                <li><?php echo esc_html($interest); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                    
+                    <!-- Skills -->
+                    <?php if (!empty($skills)): ?>
+                        <div class="cv-section-title">Skills</div>
+                        <ul class="cv-simple-list">
+                            <?php foreach ($skills as $skill): ?>
+                                <li><?php echo esc_html($skill); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                    
+                    <!-- Languages -->
+                    <?php if (!empty($languages)): ?>
+                        <div class="cv-section-title">Language</div>
+                        <ul class="cv-simple-list">
+                            <?php foreach ($languages as $lang): ?>
+                                <li>
+                                    <?php echo esc_html($lang['name']); ?>
+                                    <?php if (!empty($lang['level'])): ?>
+                                        (<?php echo esc_html($lang['level']); ?>)
+                                    <?php endif; ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
+            
+            <!-- RIGHT SIDE -->
+            <div class="cv-right">
+                <!-- Summary (Optional) -->
+                <?php if (!empty($cv_summary)): ?>
+                    <div class="cv-summary-section">
+                        <?php echo wp_kses_post(nl2br($cv_summary)); ?>
+                    </div>
+                <?php endif; ?>
+                
+                <!-- Education -->
+                <?php if (!empty($education)): ?>
+                    <div class="cv-section-title">Education</div>
+                    <?php foreach ($education as $edu): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">
+                                • <?php echo esc_html($edu['title']); ?>
+                                <?php if (!empty($edu['location'])): ?>
+                                    | <?php echo esc_html($edu['location']); ?>
+                                <?php endif; ?>
+                                <?php if (!empty($edu['period'])): ?>
+                                    (<?php echo esc_html($edu['period']); ?>)
+                                <?php endif; ?>
+                            </div>
+                            <?php if (!empty($edu['details'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($edu['details'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+				
+				 <?php if (!empty($camps)): ?>
+                    <div class="cv-section-title">Summer Camps</div>
+                    <?php foreach ($camps as $camp): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">
+                                • <?php echo esc_html($camp['title']); ?>
+                                <?php if (!empty($camp['location'])): ?>
+                                    | <?php echo esc_html($camp['location']); ?>
+                                <?php endif; ?>
+                                <?php if (!empty($camp['date'])): ?>
+                                    (<?php echo esc_html($camp['date']); ?>)
+                                <?php endif; ?>
+                            </div>
+                            <?php if (!empty($camp['details'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($camp['details'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
+                
+                <!-- Experience -->
+                <?php if (!empty($experience)): ?>
+                    <div class="cv-section-title">Experience</div>
+                    <?php foreach ($experience as $exp): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">
+                                • <?php echo esc_html($exp['title']); ?>
+                                <?php if (!empty($exp['period'])): ?>
+                                    (<?php echo esc_html($exp['period']); ?>)
+                                <?php endif; ?>
+                            </div>
+                            <?php if (!empty($exp['details'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($exp['details'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
+                <!-- Honors & Awards -->
+                <?php if (!empty($awards)): ?>
+                    <div class="cv-section-title">Honors & Awards</div>
+                    <?php foreach ($awards as $award): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">
+                                • <?php echo esc_html($award['title']); ?>
+                                <?php if (!empty($award['date'])): ?>
+                                    (<?php echo esc_html($award['date']); ?>)
+                                <?php endif; ?>
+                            </div>
+                            <?php if (!empty($award['details'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($award['details'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
+                <!-- Summer Camps -->
+               
+                <!-- Projects -->
+                <?php if (!empty($projects)): ?>
+                    <div class="cv-section-title">Projects</div>
+                    <?php foreach ($projects as $proj): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">
+                                • <?php echo esc_html($proj['title']); ?>
+                                <?php if (!empty($proj['period'])): ?>
+                                    (<?php echo esc_html($proj['period']); ?>)
+                                <?php endif; ?>
+                                <?php if (!empty($proj['url'])): ?>
+                                    <a href="<?php echo esc_url($proj['url']); ?>" target="_blank" style="color: #3498db; text-decoration: none;"> →</a>
+                                <?php endif; ?>
+                            </div>
+                            <?php if (!empty($proj['details'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($proj['details'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
+                <!-- Volunteering -->
+                <?php if (!empty($volunteer)): ?>
+                    <div class="cv-section-title">Volunteering</div>
+                    <?php foreach ($volunteer as $vol): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">
+                                • <?php echo esc_html($vol['title']); ?>
+                                <?php if (!empty($vol['period'])): ?>
+                                    (<?php echo esc_html($vol['period']); ?>)
+                                <?php endif; ?>
+                            </div>
+                            <?php if (!empty($vol['details'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($vol['details'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                
+                <!-- Entrepreneurship & Leadership -->
+                <?php if (!empty($entrepreneurship) || !empty($leadership)): ?>
+                    <div class="cv-section-title">Entrepreneurship & Leadership</div>
+                    
+                    <?php if (!empty($entrepreneurship)): ?>
+                        <?php foreach ($entrepreneurship as $entre): ?>
+                            <div class="cv-item">
+                                <div class="cv-item-title">
+                                    • <?php echo esc_html($entre['title']); ?>
+                                    <?php if (!empty($entre['period'])): ?>
+                                        (<?php echo esc_html($entre['period']); ?>)
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!empty($entre['details'])): ?>
+                                    <div class="cv-item-details"><?php echo wp_kses_post(nl2br($entre['details'])); ?></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($leadership)): ?>
+                        <?php foreach ($leadership as $lead): ?>
+                            <div class="cv-item">
+                                <div class="cv-item-title">
+                                    • <?php echo esc_html($lead['title']); ?>
+                                    <?php if (!empty($lead['period'])): ?>
+                                        (<?php echo esc_html($lead['period']); ?>)
+                                    <?php endif; ?>
+                                </div>
+                                <?php if (!empty($lead['details'])): ?>
+                                    <div class="cv-item-details"><?php echo wp_kses_post(nl2br($lead['details'])); ?></div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                <?php endif; ?>
+                
+                <!-- School Clubs -->
+                <?php if (!empty($clubs)): ?>
+                    <div class="cv-section-title">School Clubs</div>
+                    <?php foreach ($clubs as $club): ?>
+                        <div class="cv-item">
+                            <div class="cv-item-title">• <?php echo esc_html($club['year']); ?></div>
+                            <?php if (!empty($club['list'])): ?>
+                                <div class="cv-item-details"><?php echo wp_kses_post(nl2br($club['list'])); ?></div>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+?>
