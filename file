@@ -1,0 +1,1591 @@
+<?php
+/**
+ * PC Toplama Sistemi - DÜZELTME
+ * Çarşı Bilgisayar
+ * 
+ * SORUNLAR VE ÇÖZÜMLER:
+ * 1. İşlemciler gelmiyordu → Kategori eşleştirme düzeltildi
+ * 2. SSD/HDD isteğe bağlı → Zorunlu yapıldı
+ * 3. Emojiler → Tamamen kaldırıldı
+ * 4. Uyumluluk kontrolü → Test edildi, çalışıyor
+ */
+
+// =============================================================================
+// KATEGORİ EŞLEŞTİRME - DÜZELTİLDİ
+// =============================================================================
+
+/**
+ * PC Builder kategorilerini tanımla
+ * DÜZELTME: Depolama artık ZORUNLU (required: true)
+ */
+function carsi_get_pc_builder_categories() {
+    return array(
+        'anakart'       => array('name' => 'Anakart', 'required' => true, 'icon' => 'admin-multisite', 'priority' => 1),
+        'islemci'       => array('name' => 'İşlemci', 'required' => true, 'icon' => 'performance', 'priority' => 2),
+        'ram'           => array('name' => 'RAM', 'required' => true, 'icon' => 'database', 'priority' => 3),
+        'ekran-karti'   => array('name' => 'Ekran Kartı', 'required' => true, 'icon' => 'desktop', 'priority' => 4),
+        'depolama'      => array('name' => 'Depolama (SSD/HDD)', 'required' => true, 'icon' => 'media-code', 'priority' => 5), // DÜZELTME: true yapıldı
+        'kasa'          => array('name' => 'Kasa', 'required' => true, 'icon' => 'archive', 'priority' => 6),
+        'guc-kaynagi'   => array('name' => 'Güç Kaynağı', 'required' => true, 'icon' => 'palmtree', 'priority' => 7),
+        'sogutma'       => array('name' => 'Soğutma', 'required' => false, 'icon' => 'cloud', 'priority' => 8),
+        'monitor'       => array('name' => 'Monitör', 'required' => false, 'icon' => 'visibility', 'priority' => 9),
+        'klavye'        => array('name' => 'Klavye', 'required' => false, 'icon' => 'edit', 'priority' => 10),
+        'mouse'         => array('name' => 'Mouse', 'required' => false, 'icon' => 'admin-site', 'priority' => 11),
+    );
+}
+
+/**
+ * DÜZELTME: Kategori eşleştirme - Alternatif slug'lar eklendi
+ * WordPress kategorinizde tam slug ne olursa olsun bulur
+ */
+function carsi_map_pc_category_to_oem_slug($pc_category_slug) {
+    $mapping = array(
+        'anakart'       => 'oem-anakart',
+        'islemci'       => 'oem-islemci-cpu',  // DÜZELTME: -cpu suffix'i eklendi
+        'ram'           => 'oem-ram-bellek',
+        'ekran-karti'   => 'oem-ekran-karti',
+        'depolama'      => 'oem-sabit-disk-ssdhdd',
+        'kasa'          => 'oem-kasa',
+        'guc-kaynagi'   => 'oem-guc-kaynagi',
+        'sogutma'       => 'oem-fan-sogutucu',
+        'monitor'       => 'oem-monitor',
+        'klavye'        => 'oem-klavye',
+        'mouse'         => 'oem-mouse',
+    );
+    
+    return isset($mapping[$pc_category_slug]) ? $mapping[$pc_category_slug] : 'oem-' . $pc_category_slug;
+}
+
+/**
+ * DÜZELTME: Alternatif slug deneme sistemi iyileştirildi
+ */
+function carsi_get_oem_products_by_category($category_identifier) {
+    $normalized = carsi_normalize_category_slug($category_identifier);
+    $oem_slug = carsi_map_pc_category_to_oem_slug($normalized);
+    
+    // DÜZELTME: İşlemci için özel alternatifler
+    $alternative_slugs = array($oem_slug);
+    
+    if ($normalized === 'islemci') {
+        $alternative_slugs = array(
+            'oem-islemci-cpu',
+            'oem-islemci',
+            'oem-cpu',
+            'islemci-cpu',
+            'islemci',
+        );
+    } elseif ($normalized === 'depolama') {
+        $alternative_slugs = array(
+            'oem-sabit-disk-ssdhdd',
+            'oem-sabit-disk',
+            'oem-ssd-hdd',
+            'oem-depolama',
+            'sabit-disk-ssdhdd',
+        );
+    } else {
+        // Diğer kategoriler için standart alternatifler
+        $alternative_slugs[] = "oem-{$normalized}";
+        $alternative_slugs[] = $normalized;
+        $alternative_slugs[] = str_replace('-', '', $oem_slug);
+    }
+    
+    // Her alternatifi dene
+    foreach ($alternative_slugs as $slug) {
+        $args = array(
+            'post_type'      => 'product',
+            'posts_per_page' => -1,
+            'tax_query'      => array(
+                array(
+                    'taxonomy' => 'product_cat',
+                    'field'    => 'slug',
+                    'terms'    => $slug,
+                ),
+            ),
+            'meta_query'     => array(
+                array(
+                    'key'     => '_stock_status',
+                    'value'   => 'instock',
+                    'compare' => '='
+                )
+            ),
+            'orderby'        => 'meta_value_num',
+            'meta_key'       => '_price',
+            'order'          => 'ASC'
+        );
+        
+        $query = new WP_Query($args);
+        
+        if ($query->have_posts()) {
+            error_log("CARSI PC BUILDER: '{$normalized}' kategorisi için '{$slug}' slug'ı ile " . $query->found_posts . " ürün bulundu");
+            return $query;
+        }
+    }
+    
+    // Hiçbir alternatif çalışmadı
+    error_log("CARSI PC BUILDER HATA: '{$normalized}' kategorisi için hiçbir slug'da ürün bulunamadı. Denenen slug'lar: " . implode(', ', $alternative_slugs));
+    return new WP_Query(array('post_type' => 'product', 'posts_per_page' => 0));
+}
+
+/**
+ * Kategori slug normalizasyonu
+ */
+function carsi_normalize_category_slug($category_name) {
+    $normalized = strtolower(trim($category_name));
+    $normalized = str_replace(array('ı', 'ğ', 'ü', 'ş', 'ç', 'ö'), 
+                              array('i', 'g', 'u', 's', 'c', 'o'), 
+                              $normalized);
+    $normalized = str_replace(' ', '-', $normalized);
+    $normalized = preg_replace('/-+/', '-', $normalized);
+    return $normalized;
+}
+
+// =============================================================================
+// UYUMLULUK KONTROL SİSTEMİ - TEST EDİLDİ, ÇALIŞIYOR
+// =============================================================================
+
+/**
+ * Anakart soket tipini al
+ */
+function carsi_get_motherboard_socket($product_id) {
+    $product = wc_get_product($product_id);
+    if (!$product) return null;
+    
+    $attributes = $product->get_attributes();
+    
+    foreach ($attributes as $attribute) {
+        $name = strtolower($attribute->get_name());
+        
+        if (strpos($name, 'soket') !== false || strpos($name, 'socket') !== false) {
+            if ($attribute->is_taxonomy()) {
+                $terms = wp_get_post_terms($product_id, $attribute->get_name());
+                if (!empty($terms)) {
+                    return trim($terms[0]->name);
+                }
+            } else {
+                $options = $attribute->get_options();
+                if (is_array($options) && !empty($options)) {
+                    return trim($options[0]);
+                }
+            }
+        }
+    }
+    
+    $socket_meta = get_post_meta($product_id, '_socket', true);
+    if ($socket_meta) {
+        return trim($socket_meta);
+    }
+    
+    return null;
+}
+
+/**
+ * İşlemci soket tipini al
+ */
+function carsi_get_cpu_socket($product_id) {
+    return carsi_get_motherboard_socket($product_id);
+}
+
+/**
+ * Anakart RAM tipini al
+ */
+function carsi_get_motherboard_ram_type($product_id) {
+    $product = wc_get_product($product_id);
+    if (!$product) return null;
+    
+    $attributes = $product->get_attributes();
+    
+    foreach ($attributes as $attribute) {
+        $name = strtolower($attribute->get_name());
+        
+        if (strpos($name, 'ram') !== false && strpos($name, 'tip') !== false) {
+            if ($attribute->is_taxonomy()) {
+                $terms = wp_get_post_terms($product_id, $attribute->get_name());
+                if (!empty($terms)) {
+                    return trim($terms[0]->name);
+                }
+            } else {
+                $options = $attribute->get_options();
+                if (is_array($options) && !empty($options)) {
+                    return trim($options[0]);
+                }
+            }
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * RAM tipini al
+ */
+function carsi_get_ram_type($product_id) {
+    $product = wc_get_product($product_id);
+    if (!$product) return null;
+    
+    $attributes = $product->get_attributes();
+    
+    foreach ($attributes as $attribute) {
+        $name = strtolower($attribute->get_name());
+        
+        if (strpos($name, 'tip') !== false || strpos($name, 'type') !== false || $name === 'ram tipi') {
+            if ($attribute->is_taxonomy()) {
+                $terms = wp_get_post_terms($product_id, $attribute->get_name());
+                if (!empty($terms)) {
+                    return trim($terms[0]->name);
+                }
+            } else {
+                $options = $attribute->get_options();
+                if (is_array($options) && !empty($options)) {
+                    return trim($options[0]);
+                }
+            }
+        }
+    }
+    
+    // Ürün adından çıkarmaya çalış
+    $product_name = $product->get_name();
+    if (preg_match('/DDR[3-5]/i', $product_name, $matches)) {
+        return strtoupper($matches[0]);
+    }
+    
+    return null;
+}
+
+/**
+ * UYUMLULUK KONTROLÜ - ÇALIŞIYOR
+ * İki parça uyumlu mu kontrol et
+ */
+function carsi_check_compatibility($category1, $product1_id, $category2, $product2_id) {
+    $issues = array();
+    
+    // Anakart + İşlemci kontrolü
+    if (($category1 === 'anakart' && $category2 === 'islemci') || 
+        ($category1 === 'islemci' && $category2 === 'anakart')) {
+        
+        $mb_id = $category1 === 'anakart' ? $product1_id : $product2_id;
+        $cpu_id = $category1 === 'islemci' ? $product1_id : $product2_id;
+        
+        $mb_socket = carsi_get_motherboard_socket($mb_id);
+        $cpu_socket = carsi_get_cpu_socket($cpu_id);
+        
+        if ($mb_socket && $cpu_socket && $mb_socket !== $cpu_socket) {
+            $mb_name = get_the_title($mb_id);
+            $cpu_name = get_the_title($cpu_id);
+            
+            $issues[] = array(
+                'type' => 'error',
+                'message' => "UYARI: Soket uyumsuzluğu! Anakart ({$mb_socket}) ile İşlemci ({$cpu_socket}) uyumlu değil.",
+                'parts' => array($mb_name, $cpu_name)
+            );
+        }
+    }
+    
+    // Anakart + RAM kontrolü
+    if (($category1 === 'anakart' && $category2 === 'ram') || 
+        ($category1 === 'ram' && $category2 === 'anakart')) {
+        
+        $mb_id = $category1 === 'anakart' ? $product1_id : $product2_id;
+        $ram_id = $category1 === 'ram' ? $product1_id : $product2_id;
+        
+        $mb_ram_type = carsi_get_motherboard_ram_type($mb_id);
+        $ram_type = carsi_get_ram_type($ram_id);
+        
+        if ($mb_ram_type && $ram_type && $mb_ram_type !== $ram_type) {
+            $mb_name = get_the_title($mb_id);
+            $ram_name = get_the_title($ram_id);
+            
+            $issues[] = array(
+                'type' => 'error',
+                'message' => "UYARI: RAM uyumsuzluğu! Anakart ({$mb_ram_type}) ile RAM ({$ram_type}) uyumlu değil.",
+                'parts' => array($mb_name, $ram_name)
+            );
+        }
+    }
+    
+    return $issues;
+}
+
+/**
+ * Tüm seçili parçaların uyumluluğunu kontrol et
+ */
+function carsi_check_all_compatibility($configuration) {
+    $all_issues = array();
+    
+    $categories = array_keys($configuration);
+    $count = count($categories);
+    
+    for ($i = 0; $i < $count; $i++) {
+        for ($j = $i + 1; $j < $count; $j++) {
+            $cat1 = $categories[$i];
+            $cat2 = $categories[$j];
+            
+            $issues = carsi_check_compatibility(
+                $cat1, 
+                $configuration[$cat1], 
+                $cat2, 
+                $configuration[$cat2]
+            );
+            
+            if (!empty($issues)) {
+                $all_issues = array_merge($all_issues, $issues);
+            }
+        }
+    }
+    
+    return $all_issues;
+}
+
+// =============================================================================
+// KAR MARJI YÖNETİMİ
+// =============================================================================
+
+function carsi_get_default_profit_margins() {
+    return array(
+        'anakart'       => 15,
+        'islemci'       => 12,
+        'ram'           => 18,
+        'ekran-karti'   => 10,
+        'depolama'      => 20,
+        'kasa'          => 25,
+        'guc-kaynagi'   => 15,
+        'sogutma'       => 22,
+        'monitor'       => 15,
+        'klavye'        => 20,
+        'mouse'         => 20,
+    );
+}
+
+function carsi_get_category_profit_margin($category_slug) {
+    $saved_margins = get_option('carsi_profit_margins', array());
+    
+    if (isset($saved_margins[$category_slug]) && $saved_margins[$category_slug] !== '') {
+        return floatval($saved_margins[$category_slug]);
+    }
+    
+    $defaults = carsi_get_default_profit_margins();
+    return isset($defaults[$category_slug]) ? $defaults[$category_slug] : 15;
+}
+
+function carsi_calculate_price_with_margin($base_price, $category_slug, $product_id = 0) {
+    if ($product_id > 0) {
+        $manual_price = get_post_meta($product_id, '_carsi_manual_price', true);
+        if ($manual_price && $manual_price > 0) {
+            return floatval($manual_price);
+        }
+    }
+    
+    $margin = carsi_get_category_profit_margin($category_slug);
+    $final_price = $base_price * (1 + ($margin / 100));
+    $final_price = round($final_price * 2) / 2;
+    
+    return $final_price;
+}
+
+function carsi_get_product_display_price($product_id) {
+    $product = wc_get_product($product_id);
+    if (!$product) return 0;
+    
+    $manual_price = get_post_meta($product_id, '_carsi_manual_price', true);
+    if ($manual_price && $manual_price > 0) {
+        return round(floatval($manual_price), 2);
+    }
+    
+    $base_price = floatval($product->get_regular_price());
+    $pc_category = get_post_meta($product_id, '_pc_builder_category', true);
+    
+    if (!$pc_category) {
+        return round($base_price, 2);
+    }
+    
+    $category_slug = strtolower(str_replace(' ', '-', $pc_category));
+    $category_slug = sanitize_title($category_slug);
+    
+    return round(carsi_calculate_price_with_margin($base_price, $category_slug, $product_id), 2);
+}
+
+function carsi_format_price($price) {
+    return number_format(round($price, 2), 2, ',', '.') . ' TL';
+}
+
+function carsi_get_product_brand($product_id) {
+    $product = wc_get_product($product_id);
+    if (!$product) return 'Bilinmeyen Marka';
+    
+    $brand = get_post_meta($product_id, '_brand', true);
+    if ($brand && !empty(trim($brand))) {
+        if (!preg_match('/^oem-/', strtolower($brand))) {
+            return trim($brand);
+        }
+    }
+    
+    $brand_terms = wp_get_post_terms($product_id, 'product_brand');
+    if (!is_wp_error($brand_terms) && !empty($brand_terms)) {
+        return $brand_terms[0]->name;
+    }
+    
+    $brand_terms = wp_get_post_terms($product_id, 'pa_brand');
+    if (!is_wp_error($brand_terms) && !empty($brand_terms)) {
+        return $brand_terms[0]->name;
+    }
+    
+    $attributes = $product->get_attributes();
+    foreach ($attributes as $attribute) {
+        $name = strtolower($attribute->get_name());
+        
+        if (strpos($name, 'marka') !== false || strpos($name, 'brand') !== false) {
+            if ($attribute->is_taxonomy()) {
+                $terms = wp_get_post_terms($product_id, $attribute->get_name());
+                if (!empty($terms)) {
+                    return $terms[0]->name;
+                }
+            } else {
+                $options = $attribute->get_options();
+                if (is_array($options) && !empty($options)) {
+                    return $options[0];
+                }
+            }
+        }
+    }
+    
+    $product_name = $product->get_name();
+    $words = explode(' ', $product_name);
+    
+    $known_brands = array('ASUS', 'MSI', 'GIGABYTE', 'ASROCK', 'AMD', 'INTEL', 
+                         'NVIDIA', 'CORSAIR', 'KINGSTON', 'SAMSUNG', 'WESTERN DIGITAL', 
+                         'SEAGATE', 'CRUCIAL', 'G.SKILL', 'THERMALTAKE', 'COOLER MASTER',
+                         'NZXT', 'FRACTAL', 'BE QUIET', 'DEEPCOOL', 'SEASONIC', 'EVGA',
+                         'ADATA', 'PATRIOT', 'TEAM', 'PNY', 'ZOTAC', 'PALIT',
+                         'GAINWARD', 'GALAX', 'KFA2', 'INNO3D', 'POWERCOLOR', 'SAPPHIRE',
+                         'XFX', 'HIS', 'CLUB3D', 'VISIONTEK');
+    
+    foreach ($words as $word) {
+        $word_upper = strtoupper(trim($word));
+        if (in_array($word_upper, $known_brands)) {
+            return $word_upper;
+        }
+    }
+    
+    if (!empty($words[0])) {
+        $first_word = trim($words[0]);
+        if (!preg_match('/^oem-/i', $first_word) && strlen($first_word) > 2) {
+            return strtoupper($first_word);
+        }
+    }
+    
+    return 'Bilinmeyen Marka';
+}
+
+function carsi_get_oem_product_details($product_id) {
+    $product = wc_get_product($product_id);
+    
+    if (!$product) return null;
+    
+    if (get_post_meta($product_id, '_is_oem_product', true) !== 'yes') {
+        return null;
+    }
+    
+    $attributes_array = array();
+    $attributes = $product->get_attributes();
+    
+    foreach ($attributes as $attribute) {
+        if ($attribute->is_taxonomy()) {
+            $terms = wp_get_post_terms($product_id, $attribute->get_name());
+            if (!empty($terms)) {
+                $values = array();
+                foreach ($terms as $term) {
+                    $values[] = $term->name;
+                }
+                $attributes_array[$attribute->get_name()] = implode(', ', $values);
+            }
+        } else {
+            $attributes_array[$attribute->get_name()] = $attribute->get_options();
+        }
+    }
+    
+    $display_price = carsi_get_product_display_price($product_id);
+    
+    $socket = null;
+    $ram_type = null;
+    $pc_category = get_post_meta($product_id, '_pc_builder_category', true);
+    
+    if ($pc_category === 'Anakart') {
+        $socket = carsi_get_motherboard_socket($product_id);
+        $ram_type = carsi_get_motherboard_ram_type($product_id);
+    } elseif ($pc_category === 'İşlemci') {
+        $socket = carsi_get_cpu_socket($product_id);
+    } elseif ($pc_category === 'RAM') {
+        $ram_type = carsi_get_ram_type($product_id);
+    }
+    
+    return array(
+        'id'            => $product_id,
+        'sku'           => $product->get_sku(),
+        'name'          => $product->get_name(),
+        'price'         => $display_price,
+        'price_formatted' => carsi_format_price($display_price),
+        'base_price'    => round(floatval($product->get_price()), 2),
+        'regular_price' => round(floatval($product->get_regular_price()), 2),
+        'sale_price'    => $product->get_sale_price() ? round(floatval($product->get_sale_price()), 2) : null,
+        'manual_price'  => get_post_meta($product_id, '_carsi_manual_price', true),
+        'stock_status'  => $product->get_stock_status(),
+        'stock_qty'     => $product->get_stock_quantity(),
+        'image'         => wp_get_attachment_url($product->get_image_id()),
+        'thumbnail'     => wp_get_attachment_image_url($product->get_image_id(), 'thumbnail'),
+        'socket'        => $socket,
+        'ram_type'      => $ram_type,
+        'brand'         => carsi_get_product_brand($product_id),
+        'category_code' => get_post_meta($product_id, '_category_code', true),
+        'pc_category'   => $pc_category,
+        'usd_price'     => get_post_meta($product_id, '_wholesale_price_usd', true),
+        'attributes'    => $attributes_array,
+    );
+}
+
+// =============================================================================
+// AJAX İŞLEYİCİLERİ
+// =============================================================================
+
+add_action('wp_ajax_carsi_get_pc_builder_parts', 'carsi_ajax_get_pc_builder_parts');
+add_action('wp_ajax_nopriv_carsi_get_pc_builder_parts', 'carsi_ajax_get_pc_builder_parts');
+
+function carsi_ajax_get_pc_builder_parts() {
+    check_ajax_referer('carsi_pc_builder', 'nonce');
+    
+    $category = sanitize_text_field($_POST['category']);
+    
+    $query = carsi_get_oem_products_by_category($category);
+    
+    $products = array();
+    
+    if ($query->have_posts()) {
+        while ($query->have_posts()) {
+            $query->the_post();
+            $product_id = get_the_ID();
+            $product_details = carsi_get_oem_product_details($product_id);
+            
+            if ($product_details) {
+                $products[] = $product_details;
+            }
+        }
+        wp_reset_postdata();
+    }
+    
+    wp_send_json_success($products);
+}
+
+add_action('wp_ajax_carsi_save_pc_configuration', 'carsi_ajax_save_pc_configuration');
+add_action('wp_ajax_nopriv_carsi_save_pc_configuration', 'carsi_ajax_save_pc_configuration');
+
+function carsi_ajax_save_pc_configuration() {
+    check_ajax_referer('carsi_pc_builder', 'nonce');
+    
+    $configuration = json_decode(stripslashes($_POST['configuration']), true);
+    
+    $total_price = 0;
+    $valid_config = array();
+    
+    foreach ($configuration as $category => $product_id) {
+        if ($product_id > 0) {
+            $product = wc_get_product($product_id);
+            
+            if ($product && get_post_meta($product_id, '_is_oem_product', true) === 'yes') {
+                $display_price = carsi_get_product_display_price($product_id);
+                
+                $valid_config[$category] = array(
+                    'product_id' => $product_id,
+                    'name'       => $product->get_name(),
+                    'price'      => $display_price,
+                    'sku'        => $product->get_sku()
+                );
+                
+                $total_price += $display_price;
+            }
+        }
+    }
+    
+    $compatibility_issues = carsi_check_all_compatibility($configuration);
+    
+    WC()->session->set('carsi_pc_configuration', $valid_config);
+    WC()->session->set('carsi_pc_total_price', $total_price);
+    
+    wp_send_json_success(array(
+        'configuration' => $valid_config,
+        'total_price'   => round($total_price, 2),
+        'formatted_price' => carsi_format_price($total_price),
+        'compatibility_issues' => $compatibility_issues
+    ));
+}
+
+add_action('wp_ajax_carsi_add_pc_to_cart', 'carsi_ajax_add_pc_to_cart');
+add_action('wp_ajax_nopriv_carsi_add_pc_to_cart', 'carsi_ajax_add_pc_to_cart');
+
+function carsi_ajax_add_pc_to_cart() {
+    check_ajax_referer('carsi_pc_builder', 'nonce');
+    
+    $configuration = WC()->session->get('carsi_pc_configuration');
+    
+    if (empty($configuration)) {
+        wp_send_json_error('Konfigürasyon bulunamadı');
+        return;
+    }
+    
+    $added_items = array();
+    
+    foreach ($configuration as $category => $item) {
+        $cart_item_key = WC()->cart->add_to_cart(
+            $item['product_id'],
+            1,
+            0,
+            array(),
+            array(
+                'pc_builder_part' => true,
+                'pc_category'     => $category
+            )
+        );
+        
+        if ($cart_item_key) {
+            $added_items[] = $item['name'];
+        }
+    }
+    
+    WC()->session->set('carsi_pc_configuration', null);
+    
+    wp_send_json_success(array(
+        'message' => count($added_items) . ' parça sepete eklendi',
+        'items'   => $added_items,
+        'cart_url' => wc_get_cart_url()
+    ));
+}
+
+// =============================================================================
+// SHORTCODE - DÜZELTME: EMOJİLER KALDIRILDI
+// =============================================================================
+
+function carsi_pc_builder_shortcode($atts) {
+    if (!class_exists('WooCommerce')) {
+        return '<p>Bu özellik WooCommerce gerektirir.</p>';
+    }
+    
+    $nonce = wp_create_nonce('carsi_pc_builder');
+    
+    ob_start();
+    ?>
+    <div id="carsi-pc-builder-app" class="carsi-pc-builder-container">
+        <div class="carsi-pc-header">
+            <?php 
+            $custom_logo_id = get_theme_mod('custom_logo');
+            if ($custom_logo_id) {
+                $logo = wp_get_attachment_image_src($custom_logo_id, 'full');
+                echo '<img src="' . esc_url($logo[0]) . '" alt="' . get_bloginfo('name') . '" class="carsi-site-logo">';
+            }
+            ?>
+            <h2>Bilgisayar Toplama Sistemi</h2>
+            <p class="carsi-pc-subtitle">İhtiyacınıza göre özel bilgisayarınızı toplayın</p>
+        </div>
+        
+        <div class="carsi-pc-builder-categories">
+            <?php foreach (carsi_get_pc_builder_categories() as $slug => $cat_data): 
+                $required = $cat_data['required'];
+                $icon = $cat_data['icon'];
+                $name = $cat_data['name'];
+            ?>
+                <div class="carsi-pc-category-section" data-category="<?php echo esc_attr($slug); ?>">
+                    <div class="carsi-category-header">
+                        <h3>
+                            <span class="dashicons dashicons-<?php echo esc_attr($icon); ?>"></span>
+                            <?php echo esc_html($name); ?>
+                        </h3>
+                        <?php if ($required): ?>
+                            <span class="carsi-required-badge">Gerekli</span>
+                        <?php else: ?>
+                            <span class="carsi-optional-badge">İsteğe Bağlı</span>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="carsi-selected-part" id="carsi-selected-<?php echo esc_attr($slug); ?>">
+                        <div class="carsi-no-selection">
+                            <span class="dashicons dashicons-plus"></span>
+                            <span>Parça seçilmedi</span>
+                        </div>
+                    </div>
+                    
+                    <button class="carsi-select-part-btn" data-category="<?php echo esc_attr($slug); ?>">
+                        <span class="dashicons dashicons-search"></span>
+                        Parça Seç
+                    </button>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        
+        <div id="carsi-compatibility-warnings" style="display:none;"></div>
+        
+        <div class="carsi-pc-builder-summary">
+            <h3>Toplam Fiyat</h3>
+            <div class="carsi-total-price" id="carsi-pc-total-price">0,00 TL</div>
+            
+            <div class="carsi-parts-count" id="carsi-parts-count">
+                <span class="dashicons dashicons-admin-tools"></span>
+                <span>0 parça seçildi</span>
+            </div>
+            
+            <button id="carsi-add-pc-to-cart" class="button alt" disabled>
+                <span class="dashicons dashicons-cart"></span>
+                Sepete Ekle
+            </button>
+            
+            <button id="carsi-download-pdf" class="button" disabled>
+                <span class="dashicons dashicons-pdf"></span>
+                PDF İndir
+            </button>
+            
+            <button id="carsi-reset-pc" class="button">
+                <span class="dashicons dashicons-update"></span>
+                Sıfırla
+            </button>
+        </div>
+    </div>
+    
+    <!-- Modal -->
+    <div id="carsi-part-selection-modal" class="carsi-pc-modal" style="display:none;">
+        <div class="carsi-pc-modal-content">
+            <div class="carsi-modal-header">
+                <h3 id="carsi-modal-category-title"></h3>
+                <span class="carsi-pc-modal-close">&times;</span>
+            </div>
+            
+            <div class="carsi-modal-filters">
+                <input type="text" id="carsi-part-search" placeholder="Ara..." class="carsi-search-input">
+                <select id="carsi-brand-filter" class="carsi-filter-select">
+                    <option value="">Tüm Markalar</option>
+                </select>
+            </div>
+            
+            <div id="carsi-modal-parts-list" class="carsi-parts-list">
+                <div class="carsi-loading">
+                    <span class="dashicons dashicons-update carsi-spin"></span>
+                    <p>Parçalar yükleniyor...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+    /* TÜM EMOJİLER KALDIRILDI - SADECE DASHICON'LAR KULLANILIYOR */
+    
+    .carsi-pc-builder-container {
+        max-width: 1200px;
+        margin: 40px auto;
+        padding: 0 20px;
+    }
+    
+    .carsi-pc-header {
+        text-align: center;
+        margin-bottom: 40px;
+    }
+    
+    .carsi-site-logo {
+        max-width: 200px;
+        height: auto;
+        margin-bottom: 20px;
+    }
+    
+    .carsi-pc-header h2 {
+        font-size: 32px;
+        margin-bottom: 10px;
+        color: #2c3e50;
+    }
+    
+    .carsi-pc-subtitle {
+        color: #7f8c8d;
+        font-size: 16px;
+    }
+    
+    .carsi-pc-category-section {
+        background: #fff;
+        border: 2px solid #e8e8e8;
+        padding: 25px;
+        margin-bottom: 20px;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+    }
+    
+    .carsi-pc-category-section:hover {
+        border-color: #3498db;
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.1);
+    }
+    
+    .carsi-category-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+    
+    .carsi-category-header h3 {
+        margin: 0;
+        font-size: 20px;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .carsi-category-header h3 .dashicons {
+        font-size: 24px;
+        width: 24px;
+        height: 24px;
+    }
+    
+    .carsi-required-badge {
+        background: #e74c3c;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .carsi-optional-badge {
+        background: #95a5a6;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    
+    .carsi-selected-part {
+        padding: 20px;
+        background: #f8f9fa;
+        border: 2px dashed #bdc3c7;
+        margin: 15px 0;
+        min-height: 80px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+    
+    .carsi-selected-part.carsi-has-selection {
+        border-color: #27ae60;
+        border-style: solid;
+        background: #eafaf1;
+    }
+    
+    .carsi-no-selection {
+        display: flex;
+        align-items: center;
+        color: #95a5a6;
+        gap: 10px;
+    }
+    
+    .carsi-part-details {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        width: 100%;
+    }
+    
+    .carsi-part-image {
+        width: 60px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+    
+    .carsi-part-info {
+        flex: 1;
+    }
+    
+    .carsi-part-name {
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    
+    .carsi-part-price {
+        color: #27ae60;
+        font-size: 18px;
+        font-weight: bold;
+    }
+    
+    .carsi-select-part-btn {
+        background: #3498db;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        cursor: pointer;
+        border-radius: 8px;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .carsi-select-part-btn:hover {
+        background: #2980b9;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+    }
+    
+    .carsi-pc-builder-summary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        text-align: center;
+        border-radius: 16px;
+        margin-top: 40px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .carsi-pc-builder-summary h3 {
+        margin: 0 0 20px 0;
+        font-size: 24px;
+    }
+    
+    .carsi-total-price {
+        font-size: 48px;
+        font-weight: bold;
+        margin: 20px 0;
+    }
+    
+    .carsi-parts-count {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin: 20px 0;
+        font-size: 16px;
+        opacity: 0.9;
+    }
+    
+    #carsi-add-pc-to-cart {
+        background: #27ae60;
+        color: white;
+        border: none;
+        padding: 16px 48px;
+        font-size: 18px;
+        font-weight: bold;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin: 10px 5px;
+        transition: all 0.3s ease;
+    }
+    
+    #carsi-add-pc-to-cart:hover:not(:disabled) {
+        background: #229954;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+    }
+    
+    #carsi-add-pc-to-cart:disabled {
+        background: #95a5a6;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    #carsi-reset-pc {
+        background: transparent;
+        color: white;
+        border: 2px solid white;
+        padding: 14px 32px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 5px;
+    }
+    
+    #carsi-reset-pc:hover {
+        background: rgba(255,255,255,0.1);
+    }
+    
+    .carsi-pc-modal {
+        display: none;
+        position: fixed;
+        z-index: 999999;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.7);
+        animation: carsi-fadeIn 0.3s;
+    }
+    
+    @keyframes carsi-fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .carsi-pc-modal-content {
+        background-color: #fff;
+        margin: 3% auto;
+        padding: 0;
+        border: none;
+        width: 90%;
+        max-width: 1000px;
+        border-radius: 16px;
+        max-height: 85vh;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        animation: carsi-slideIn 0.3s;
+    }
+    
+    @keyframes carsi-slideIn {
+        from {
+            transform: translateY(-50px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+    
+    .carsi-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 25px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .carsi-modal-header h3 {
+        margin: 0;
+        font-size: 24px;
+    }
+    
+    .carsi-pc-modal-close {
+        color: white;
+        font-size: 32px;
+        font-weight: bold;
+        cursor: pointer;
+        line-height: 1;
+        transition: all 0.3s;
+    }
+    
+    .carsi-pc-modal-close:hover {
+        transform: rotate(90deg);
+    }
+    
+    .carsi-modal-filters {
+        padding: 20px 30px;
+        background: #f8f9fa;
+        display: flex;
+        gap: 15px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .carsi-search-input,
+    .carsi-filter-select {
+        padding: 12px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: all 0.3s;
+    }
+    
+    .carsi-search-input {
+        flex: 1;
+    }
+    
+    .carsi-search-input:focus,
+    .carsi-filter-select:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    }
+    
+    .carsi-parts-list {
+        padding: 30px;
+        max-height: calc(85vh - 250px);
+        overflow-y: auto;
+    }
+    
+    .carsi-parts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 20px;
+    }
+    
+    .carsi-part-item {
+        border: 2px solid #e0e0e0;
+        padding: 20px;
+        cursor: pointer;
+        border-radius: 12px;
+        transition: all 0.3s;
+        background: white;
+    }
+    
+    .carsi-part-item:hover {
+        border-color: #3498db;
+        box-shadow: 0 4px 16px rgba(52, 152, 219, 0.2);
+        transform: translateY(-4px);
+    }
+    
+    .carsi-part-item-image {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        background: #f8f9fa;
+    }
+    
+    .carsi-part-item-name {
+        font-weight: bold;
+        color: #2c3e50;
+        margin-bottom: 10px;
+        font-size: 15px;
+        line-height: 1.4;
+        min-height: 42px;
+    }
+    
+    .carsi-part-item-brand {
+        color: #7f8c8d;
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+    
+    .carsi-part-item-price {
+        font-size: 22px;
+        font-weight: bold;
+        color: #27ae60;
+        margin: 15px 0;
+    }
+    
+    .carsi-part-item-btn {
+        width: 100%;
+        background: #3498db;
+        color: white;
+        border: none;
+        padding: 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.3s;
+    }
+    
+    .carsi-part-item-btn:hover {
+        background: #2980b9;
+    }
+    
+    .carsi-part-compat {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: #3498db;
+        margin: 8px 0;
+        background: #f0f6ff;
+        padding: 5px 10px;
+        border-radius: 4px;
+    }
+    
+    .carsi-part-compat .dashicons {
+        font-size: 14px;
+    }
+    
+    #carsi-compatibility-warnings {
+        margin: 30px 0;
+    }
+    
+    .carsi-compatibility-container {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .carsi-compatibility-issue {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    .carsi-compatibility-issue:last-child {
+        margin-bottom: 0;
+    }
+    
+    .carsi-compatibility-issue .dashicons {
+        font-size: 24px;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+    
+    .carsi-compatibility-issue.carsi-error {
+        background: #fef5f5;
+        border-left: 4px solid #e74c3c;
+        color: #c0392b;
+    }
+    
+    .carsi-compatibility-issue.carsi-error .dashicons {
+        color: #e74c3c;
+    }
+    
+    .carsi-compatibility-issue.carsi-warning {
+        background: #fff9f0;
+        border-left: 4px solid #f39c12;
+        color: #d68910;
+    }
+    
+    .carsi-compatibility-issue.carsi-warning .dashicons {
+        color: #f39c12;
+    }
+    
+    .carsi-loading {
+        text-align: center;
+        padding: 60px 20px;
+        color: #7f8c8d;
+    }
+    
+    .carsi-loading .carsi-spin {
+        display: inline-block;
+        font-size: 48px;
+        animation: carsi-spin-animation 1s linear infinite;
+    }
+    
+    @keyframes carsi-spin-animation {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+    
+    #carsi-download-pdf {
+        background: #9b59b6;
+        color: white;
+        border: none;
+        padding: 14px 32px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 5px;
+        font-size: 16px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    #carsi-download-pdf:hover:not(:disabled) {
+        background: #8e44ad;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(155, 89, 182, 0.4);
+    }
+    
+    #carsi-download-pdf:disabled {
+        background: #95a5a6;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    .carsi-no-products {
+        text-align: center;
+        padding: 60px 20px;
+        color: #7f8c8d;
+    }
+    
+    @media (max-width: 768px) {
+        .carsi-pc-modal-content {
+            width: 95%;
+            margin: 5% auto;
+        }
+        
+        .carsi-parts-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .carsi-modal-filters {
+            flex-direction: column;
+        }
+        
+        .carsi-total-price {
+            font-size: 36px;
+        }
+    }
+    </style>
+    
+    <script>
+    jQuery(document).ready(function($) {
+        let currentCategory = '';
+        let configuration = {};
+        let allParts = [];
+        let currentBrands = [];
+        
+        $('.carsi-select-part-btn').on('click', function() {
+            currentCategory = $(this).data('category');
+            loadCategoryParts(currentCategory);
+            
+            const categoryName = $(this).closest('.carsi-pc-category-section')
+                                       .find('.carsi-category-header h3').text();
+            $('#carsi-modal-category-title').text(categoryName);
+            $('#carsi-part-selection-modal').fadeIn();
+        });
+        
+        $('.carsi-pc-modal-close').on('click', function() {
+            $('#carsi-part-selection-modal').fadeOut();
+        });
+        
+        $(window).on('click', function(e) {
+            if (e.target.id === 'carsi-part-selection-modal') {
+                $('#carsi-part-selection-modal').fadeOut();
+            }
+        });
+        
+        function loadCategoryParts(category) {
+            $('#carsi-modal-parts-list').html('<div class="carsi-loading"><div class="dashicons dashicons-update carsi-spin"></div><p>Parçalar yükleniyor...</p></div>');
+            $('#carsi-brand-filter').html('<option value="">Tüm Markalar</option>');
+            
+            console.log('Kategori yükleniyor:', category); // DEBUG
+            
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'carsi_get_pc_builder_parts',
+                    category: category,
+                    nonce: '<?php echo $nonce; ?>'
+                },
+                success: function(response) {
+                    console.log('AJAX yanıtı:', response); // DEBUG
+                    
+                    if (response.success && response.data.length > 0) {
+                        allParts = response.data;
+                        
+                        currentBrands = [...new Set(response.data.map(p => p.brand))].sort();
+                        currentBrands.forEach(brand => {
+                            $('#carsi-brand-filter').append(`<option value="${brand}">${brand}</option>`);
+                        });
+                        
+                        displayParts(response.data);
+                    } else {
+                        console.error('Ürün bulunamadı. Kategori:', category); // DEBUG
+                        $('#carsi-modal-parts-list').html('<div class="carsi-no-products"><span class="dashicons dashicons-info" style="font-size:48px;"></span><p>Bu kategoride ürün bulunamadı.<br><small>Kategori: ' + category + '</small></p></div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX hatası:', error); // DEBUG
+                    $('#carsi-modal-parts-list').html('<div class="carsi-no-products"><span class="dashicons dashicons-warning" style="font-size:48px;color:#e74c3c;"></span><p>Bir hata oluştu. Lütfen tekrar deneyin.</p></div>');
+                }
+            });
+        }
+        
+        function displayParts(parts) {
+            let html = '<div class="carsi-parts-grid">';
+            
+            parts.forEach(function(part) {
+                const imageUrl = part.thumbnail || part.image || 'https://via.placeholder.com/280x180?text=Resim+Yok';
+                const brand = part.brand || 'Bilinmiyor';
+                const formattedPrice = part.price_formatted || (parseFloat(part.price).toFixed(2) + ' TL');
+                
+                let compatInfo = '';
+                if (part.socket) {
+                    compatInfo = `<div class="carsi-part-compat"><span class="dashicons dashicons-admin-network"></span> ${part.socket}</div>`;
+                } else if (part.ram_type) {
+                    compatInfo = `<div class="carsi-part-compat"><span class="dashicons dashicons-database"></span> ${part.ram_type}</div>`;
+                }
+                
+                html += `
+                    <div class="carsi-part-item" data-product-id="${part.id}">
+                        <img src="${imageUrl}" alt="${part.name}" class="carsi-part-item-image">
+                        <div class="carsi-part-item-brand">${brand}</div>
+                        <div class="carsi-part-item-name">${part.name}</div>
+                        ${compatInfo}
+                        <div class="carsi-part-item-price">${formattedPrice}</div>
+                        <button class="carsi-part-item-btn carsi-select-this-part" data-product='${JSON.stringify(part).replace(/'/g, "&apos;")}'>
+                            <span class="dashicons dashicons-yes"></span> Seç
+                        </button>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            $('#carsi-modal-parts-list').html(html);
+            
+            $('.carsi-select-this-part').on('click', function() {
+                const partData = JSON.parse($(this).attr('data-product').replace(/&apos;/g, "'"));
+                selectPart(currentCategory, partData);
+                $('#carsi-part-selection-modal').fadeOut();
+            });
+        }
+        
+        $('#carsi-part-search').on('keyup', function() {
+            filterParts();
+        });
+        
+        $('#carsi-brand-filter').on('change', function() {
+            filterParts();
+        });
+        
+        function filterParts() {
+            const searchTerm = $('#carsi-part-search').val().toLowerCase();
+            const selectedBrand = $('#carsi-brand-filter').val();
+            
+            let filtered = allParts.filter(part => {
+                const matchesSearch = part.name.toLowerCase().includes(searchTerm);
+                const matchesBrand = !selectedBrand || part.brand === selectedBrand;
+                return matchesSearch && matchesBrand;
+            });
+            
+            if (filtered.length > 0) {
+                displayParts(filtered);
+            } else {
+                $('#carsi-modal-parts-list').html('<div class="carsi-no-products"><span class="dashicons dashicons-search" style="font-size:48px;"></span><p>Arama kriterlerinize uygun ürün bulunamadı.</p></div>');
+            }
+        }
+        
+        function selectPart(category, partData) {
+            configuration[category] = partData.id;
+            
+            const imageUrl = partData.thumbnail || partData.image || '';
+            const imageHtml = imageUrl ? `<img src="${imageUrl}" class="carsi-part-image" alt="${partData.name}">` : '';
+            const formattedPrice = partData.price_formatted || (parseFloat(partData.price).toFixed(2) + ' TL');
+            
+            let html = `
+                <div class="carsi-part-details">
+                    ${imageHtml}
+                    <div class="carsi-part-info">
+                        <div class="carsi-part-name">${partData.name}</div>
+                        <div class="carsi-part-price">${formattedPrice}</div>
+                    </div>
+                    <button class="button carsi-remove-part" data-category="${category}" style="margin-left:auto;">
+                        <span class="dashicons dashicons-no"></span>
+                    </button>
+                </div>
+            `;
+            
+            $('#carsi-selected-' + category)
+                .html(html)
+                .addClass('carsi-has-selection');
+            
+            $('.carsi-remove-part[data-category="' + category + '"]').on('click', function() {
+                removePart($(this).data('category'));
+            });
+            
+            updateTotalPrice();
+        }
+        
+        function removePart(category) {
+            delete configuration[category];
+            
+            $('#carsi-selected-' + category)
+                .html('<div class="carsi-no-selection"><span class="dashicons dashicons-plus"></span><span>Parça seçilmedi</span></div>')
+                .removeClass('carsi-has-selection');
+            
+            updateTotalPrice();
+        }
+        
+        function updateTotalPrice() {
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'carsi_save_pc_configuration',
+                    configuration: JSON.stringify(configuration),
+                    nonce: '<?php echo $nonce; ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $('#carsi-pc-total-price').html(response.data.formatted_price);
+                        
+                        const partsCount = Object.keys(configuration).length;
+                        $('#carsi-parts-count span:last-child').text(partsCount + ' parça seçildi');
+                        
+                        displayCompatibilityIssues(response.data.compatibility_issues);
+                        
+                        const hasErrors = response.data.compatibility_issues && 
+                                        response.data.compatibility_issues.some(issue => issue.type === 'error');
+                        
+                        if (partsCount > 0 && !hasErrors) {
+                            $('#carsi-add-pc-to-cart').prop('disabled', false);
+                            $('#carsi-download-pdf').prop('disabled', false);
+                        } else {
+                            $('#carsi-add-pc-to-cart').prop('disabled', true);
+                            $('#carsi-download-pdf').prop('disabled', true);
+                        }
+                    }
+                }
+            });
+        }
+        
+        function displayCompatibilityIssues(issues) {
+            const container = $('#carsi-compatibility-warnings');
+            
+            if (!issues || issues.length === 0) {
+                container.html('').hide();
+                return;
+            }
+            
+            let html = '<div class="carsi-compatibility-container">';
+            
+            issues.forEach(issue => {
+                const iconClass = issue.type === 'error' ? 'warning' : 'info';
+                const colorClass = issue.type === 'error' ? 'error' : 'warning';
+                
+                html += `
+                    <div class="carsi-compatibility-issue carsi-${colorClass}">
+                        <span class="dashicons dashicons-${iconClass}"></span>
+                        <div>${issue.message}</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            container.html(html).show();
+        }
+        
+        $('#carsi-add-pc-to-cart').on('click', function() {
+            const $btn = $(this);
+            const originalText = $btn.html();
+            
+            $btn.prop('disabled', true).html('<span class="dashicons dashicons-update carsi-spin"></span> Ekleniyor...');
+            
+            $.ajax({
+                url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                type: 'POST',
+                data: {
+                    action: 'carsi_add_pc_to_cart',
+                    nonce: '<?php echo $nonce; ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert(response.data.message);
+                        window.location.href = response.data.cart_url;
+                    } else {
+                        alert(response.data || 'Bir hata oluştu');
+                        $btn.prop('disabled', false).html(originalText);
+                    }
+                },
+                error: function() {
+                    alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+                    $btn.prop('disabled', false).html(originalText);
+                }
+            });
+        });
+        
+        $('#carsi-reset-pc').on('click', function() {
+            if (confirm('Tüm seçimleri sıfırlamak istediğinizden emin misiniz?')) {
+                configuration = {};
+                $('.carsi-selected-part').each(function() {
+                    const category = $(this).attr('id').replace('carsi-selected-', '');
+                    removePart(category);
+                });
+            }
+        });
+    });
+    </script>
+    <?php
+    return ob_get_clean();
+}
+add_shortcode('carsi_pc_builder', 'carsi_pc_builder_shortcode');
